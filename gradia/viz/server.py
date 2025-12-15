@@ -89,7 +89,7 @@ async def configure_page(request: Request):
 
 @app.post("/api/start")
 async def start_training(config_data: Dict[str, Any]):
-    global TRAINER, TRAINING_THREAD, SCENARIO, RUN_DIR
+    global TRAINER, TRAINING_THREAD
     
     # Merge received config with defaults
     # Expect config_data = {model: {type:..., params:...}, training: {epochs:...}}
