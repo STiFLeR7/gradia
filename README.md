@@ -10,7 +10,7 @@
 [![Build Status](https://img.shields.io/github/actions/workflow/status/STiFLeR7/gradia/ci-update.yaml?style=for-the-badge)](https://github.com/STiFLeR7/gradia/actions)
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/STiFLeR7/gradia/main/docs/dashboard.png" alt="Gradia Dashboard" width="100%" />
+  <img src="https://github.com/STiFLeR7/gradia/blob/master/docs/dashboard.png" alt="Gradia Dashboard" width="100%" />
 </p>
 
 </div>
