@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>gradia | Training Observer</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <!-- Using CDN for MVP. In production, vendor this. -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+</head>
+
+<body>
+    <div class="layout">
+        <aside class="sidebar">
+            <img src="/assets/logo.png" alt="gradia" class="brand-logo">
+
+            <div class="sidebar-section">
+                <div class="sidebar-label">Experiment Context</div>
+                <div style="font-size: 0.9rem;">{{ scenario.target_column }}</div>
+                <div style="font-size: 0.8rem; color: #8e8ea0">{{ scenario.task_type }}</div>
+            </div>
+
+            <div class="sidebar-section">
+                <div class="sidebar-label">Training Status</div>
+                <div id="status-text" style="color: var(--accent); font-weight: 600;">Initializing...</div>
+            </div>
+
+            <div class="sidebar-label">Actions</div>
+            <div style="display: flex; flex-direction: column; gap: 10px;">
+                <button class="btn-primary" onclick="window.location.href='/configure'"
+                    style="background:var(--bg-card); border:1px solid var(--border); font-size: 0.8rem; padding: 10px;">New
+                    Experiment</button>
+
+                <button class="btn-primary" onclick="downloadReport('json')"
+                    style="background:var(--bg-card); border:1px solid var(--border); font-size: 0.8rem; padding: 10px;">Download
+                    JSON</button>
+                <button class="btn-primary" onclick="downloadReport('pdf')"
+                    style="background:var(--bg-card); border:1px solid var(--border); font-size: 0.8rem; padding: 10px;">Download
+                    PDF</button>
+
+                <button class="btn-primary" onclick="runEvaluation()"
+                    style="background:var(--bg-card); border:1px solid var(--accent); color:var(--accent); font-size: 0.8rem; padding: 10px;">Run
+                    Evaluation</button>
+            </div>
+
+
+            <div style="flex-grow:1"></div>
+
+            <div class="sidebar-section" style="font-size: 0.75rem; color: #565869;">
+                v1.3.0
+            </div>
+        </aside>
+
+        <main class="main">
+            <!-- Progress Bar -->
+            <div class="card"
+                style="margin-bottom: 20px; padding: 20px; background: #202123; border: 1px solid #565869;">
+                <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
+                    <span style="color:var(--text-secondary); font-size:0.9rem">Epoch Progress</span>
+                    <span id="progress-text" style="color:#fff; font-weight:600">0 / 0</span>
+                </div>
+                <div class="progress-track"
+                    style="width:100%; height:6px; background:#40414f; border-radius:3px; overflow:hidden">
+                    <div id="progress-fill"
+                        style="width:0%; height:100%; background:var(--accent); transition: width 0.3s ease"></div>
+                </div>
+            </div>
+
+            <div class="grid">
+                <!-- Training Dynamics -->
+                <div class="card col-full">
+                    <h3>Training Dynamics (Loss / Accuracy)</h3>
+                    <div class="chart-container">
+                        <canvas id="metricChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- System Usage -->
+                <div class="card">
+                    <h3>System Resources</h3>
+                    <div class="chart-container">
+                        <canvas id="systemChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Feature Importance -->
+                <div class="card">
+                    <h3>Feature Importance</h3>
+                    <div class="chart-container">
+                        <canvas id="fiChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Detailed Metrics -->
+                <div class="card col-full">
+                    <h3>Detailed Metrics</h3>
+                    <div id="metrics-table"
+                        style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px; font-size: 0.9rem;">
+                        <span style="color: #8e8ea0;">Waiting for first epoch...</span>
+                    </div>
+                </div>
+
+                <!-- Evaluation Results -->
+                <div class="card col-full" id="eval-card" style="display: none;">
+                    <h3>Evaluation Results</h3>
+                    <div id="eval-content" style="text-align: center;">
+                        <div id="cm-container" style="overflow-x: auto; display: flex; justify-content: center;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <footer class="footer">
+                <div class="footer-text">
+                    Made with <span style="color:#ef4146">♥</span> by <strong>STiFLeR</strong> for ML Aspirants
+                </div>
+                <div class="social-links">
+                    <!-- Instagram -->
+                    <a href="https://instagram.com" target="_blank" title="Instagram">
+                        <svg class="social-icon" viewBox="0 0 24 24">
+                            <path
+                                d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z" />
+                        </svg>
+                    </a>
+                    <!-- HF (Placeholder Circle) -->
+                    <a href="https://huggingface.co" target="_blank" title="Hugging Face">
+                        <svg class="social-icon" viewBox="0 0 24 24">
+                            <path
+                                d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z" />
+                        </svg>
+                    </a>
+                    <!-- PyPI -->
+                    <a href="https://pypi.org" target="_blank" title="PyPI">
+                        <svg class="social-icon" viewBox="0 0 24 24">
+                            <path
+                                d="M12.8 1.6C12.8 1.05 12.35 0.6 11.8 0.6H3.2C2.65 0.6 2.2 1.05 2.2 1.6V10.2C2.2 10.75 2.65 11.2 3.2 11.2H4.8V12.8H3.2C2.1 12.8 1.2 13.7 1.2 14.8V21.8C1.2 22.9 2.1 23.8 3.2 23.8H10.2C11.3 23.8 12.2 22.9 12.2 21.8V20.2H12.8C13.9 20.2 14.8 19.3 14.8 18.2V11.2H11.2V10.2H11.8C12.35 10.2 12.8 9.75 12.8 9.2V1.6ZM10.2 21.8H3.2V14.8H10.2V21.8ZM20.8 11.2H13.8V18.2H14.8V19.2C14.8 19.75 15.25 20.2 15.8 20.2H21.2C22.3 20.2 23.2 19.3 23.2 18.2V11.2C23.2 10.1 22.3 9.2 21.2 9.2H20.8V11.2ZM19.2 16.2H16.2V13.2H19.2V16.2Z" />
+                        </svg>
+                    </a>
+                </div>
+            </footer>
+        </main>
+    </div>
+    <script src="/static/js/app.js"></script>
+</body>
+
+</html>

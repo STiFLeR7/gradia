@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>gradia | Configure Experiment</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+</head>
+
+<body>
+    <div class="layout">
+        <aside class="sidebar">
+            <img src="/assets/logo.png" alt="gradia" class="brand-logo">
+
+            <div class="sidebar-section">
+                <div class="sidebar-label">Setup Context</div>
+                <div style="font-size: 0.9rem;">{{ scenario.target_column }}</div>
+                <div style="font-size: 0.8rem; color: #8e8ea0">{{ scenario.task_type }}</div>
+            </div>
+
+            <div class="sidebar-section">
+                <div class="sidebar-label">Features</div>
+                <div style="font-size: 0.8rem; color: #c5c5d2; line-height: 1.5;">
+                    Found {{ features|length }} features available for training.
+                </div>
+            </div>
+
+            <div style="flex-grow:1"></div>
+
+            <div class="sidebar-section" style="font-size: 0.75rem; color: #565869;">
+                v1.3.0
+            </div>
+        </aside>
+
+        <main class="main" style="display: flex; align-items: center; justify-content: center;">
+            <div class="card"
+                style="width: 100%; max-width: 600px; padding: 40px; border: 1px solid rgba(255,255,255,0.1);">
+                <h2 style="margin-top: 0; border-bottom: none; font-size: 1.5rem; margin-bottom: 10px;">Configure
+                    Experiment</h2>
+                <p style="color: var(--text-secondary); margin-bottom: 30px; margin-top:0;">Customize model parameters
+                    and training duration.</p>
+
+                <!-- Analysis Animation -->
+                <div id="scan-container" style="text-align: center; padding: 40px; color: var(--accent);">
+                    <span id="scan-text">Initializing scanner...</span>
+                </div>
+
+                <!-- Configuration Form -->
+                <form id="configForm" style="display: none; opacity: 0; transition: opacity 1s">
+                    <div class="form-group">
+                        <label>Project Name <small class="description">Identifier for this experiment.</small></label>
+                        <input type="text" id="projectName" value="my-experiment-1"
+                            style="width: 100%; padding: 12px; background: #0d1117; border: 1px solid #30363d; border-radius: 6px; color: #f0f6fc; font-family: inherit; font-size: 1rem; outline: none;">
+                    </div>
+
+                    <div class="form-group" style="display: flex; align-items: center; gap: 10px; margin-bottom: 25px;">
+                        <input type="checkbox" id="saveModel" checked
+                            style="width: 20px; height: 20px; accent-color: var(--success); cursor: pointer;">
+                        <label for="saveModel" style="margin-bottom: 0; cursor: pointer;">Save Best Model
+                            Checkpoint</label>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Model Architecture
+                            <small class="description">Select the algorithm to train on your data.</small>
+                        </label>
+                        <div class="select-wrapper">
+                            <select id="modelType" onchange="toggleFields()">
+                                <optgroup label="Deep Learning">
+                                    <option value="cnn" {{ 'selected' if default_config.model.type=='cnn' else '' }}>CNN
+                                        (Image)</option>
+                                    <option value="mlp" {{ 'selected' if default_config.model.type=='mlp' else '' }}>MLP
+                                        (Neural Net)</option>
+                                </optgroup>
+                                <optgroup label="Linear Models">
+                                    <option value="sgd" {{ 'selected' if default_config.model.type=='sgd' else '' }}>SGD
+                                        (Iterative)</option>
+                                    <option value="logistic" {{ 'selected' if default_config.model.type=='logistic'
+                                        else '' }}>Logistic Regression</option>
+                                    <option value="linear" {{ 'selected' if default_config.model.type=='linear' else ''
+                                        }}>Linear Regression (Simple)</option>
+                                </optgroup>
+                                <optgroup label="Trees & Ensembles">
+                                    <option value="decision_tree" {{ 'selected' if
+                                        default_config.model.type=='decision_tree' else '' }}>Decision Tree (Visual)
+                                    </option>
+                                    <option value="random_forest" {{ 'selected' if
+                                        default_config.model.type=='random_forest' else '' }}>Random Forest</option>
+                                    <option value="adaboost" {{ 'selected' if default_config.model.type=='adaboost'
+                                        else '' }}>AdaBoost</option>
+                                </optgroup>
+                                <optgroup label="Support Vector & Neighbors">
+                                    <option value="svm" {{ 'selected' if default_config.model.type=='svm' else '' }}>
+                                        Support Vector Machine (SVM)</option>
+                                    <option value="knn" {{ 'selected' if default_config.model.type=='knn' else '' }}>
+                                        K-Nearest Neighbors (KNN)</option>
+                                    <option value="naive_bayes" {{ 'selected' if
+                                        default_config.model.type=='naive_bayes' else '' }}>Naive Bayes (Fast)</option>
+                                </optgroup>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- SGD / Linear Fields -->
+                    <div id="sgdFields" class="model-params">
+                        <div class="form-group">
+                            <label>Learning Rate (eta0)</label>
+                            <div class="dual-input">
+                                <input type="range" id="lr" min="0.0001" max="0.1" step="0.0001" value="0.01"
+                                    oninput="syncVal('lr', 'lrInput')">
+                                <input type="number" id="lrInput" min="0.0001" max="0.1" step="0.0001" value="0.01"
+                                    oninput="syncVal('lrInput', 'lr')">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Optimizer (Penalty)</label>
+                            <div class="select-wrapper">
+                                <select id="optimizer">
+                                    <option value="l2">L2 (Ridge)</option>
+                                    <option value="l1">L1 (Lasso)</option>
+                                    <option value="elasticnet">Elastic Net</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- KNN Fields -->
+                    <div id="knnFields" class="model-params" style="display:none">
+                        <div class="form-group">
+                            <label>Neighbors (K)</label>
+                            <div class="dual-input">
+                                <input type="range" id="n_neighbors" min="1" max="20" step="1" value="5"
+                                    oninput="syncVal('n_neighbors', 'n_neighborsInput')">
+                                <input type="number" id="n_neighborsInput" min="1" max="20" step="1" value="5"
+                                    oninput="syncVal('n_neighborsInput', 'n_neighbors')">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- SVM Fields -->
+                    <div id="svmFields" class="model-params" style="display:none">
+                        <div class="form-group">
+                            <label>Kernel</label>
+                            <div class="select-wrapper">
+                                <select id="kernel">
+                                    <option value="rbf">RBF (Radial Basis)</option>
+                                    <option value="linear">Linear</option>
+                                    <option value="poly">Polynomial</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>C (Regularization)</label>
+                            <div class="dual-input">
+                                <input type="range" id="C" min="0.1" max="10" step="0.1" value="1.0"
+                                    oninput="syncVal('C', 'CInput')">
+                                <input type="number" id="CInput" min="0.1" max="10" step="0.1" value="1.0"
+                                    oninput="syncVal('CInput', 'C')">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tree Fields -->
+                    <div id="treeFields" class="model-params" style="display:none">
+                        <div class="form-group">
+                            <label>Max Depth <small class="description">None = Unlimited</small></label>
+                            <div class="dual-input">
+                                <input type="range" id="max_depth" min="1" max="50" step="1" value="10"
+                                    oninput="syncVal('max_depth', 'max_depthInput')">
+                                <input type="number" id="max_depthInput" min="1" max="50" step="1" value="10"
+                                    oninput="syncVal('max_depthInput', 'max_depth')">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Training Duration
+                            <small class="description" id="epochDesc">Total passes over data.</small>
+                        </label>
+                        <div class="sub-label" id="epochLabel">Epochs</div>
+                        <div class="dual-input">
+                            <input type="range" id="epochs" min="1" max="100" value="20"
+                                oninput="syncVal('epochs', 'epochInput')">
+                            <input type="number" id="epochInput" min="1" max="100" value="20"
+                                oninput="syncVal('epochInput', 'epochs')">
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn-primary" style="margin-top: 20px;">Start Training 🚀</button>
+                </form>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        function syncVal(srcId, destId) {
+            document.getElementById(destId).value = document.getElementById(srcId).value;
+        }
+
+        // Typing Animation Logic
+        const msgs = [
+            "Scanning directory...",
+            "Found {{ features|length }} features...",
+            "Inferring data types...",
+            "Analyzing target distribution...",
+            "Analysis Complete."
+        ];
+
+        async function runScan() {
+            const textEl = document.getElementById('scan-text');
+            const container = document.getElementById('scan-container');
+
+            for (const msg of msgs) {
+                textEl.innerText = msg;
+                await new Promise(r => setTimeout(r, 600));
+            }
+
+            // Fade out scanner, Fade in real info
+            container.style.display = 'none';
+            // document.getElementById('real-scenario').style.display = 'block'; // Removed, side bar has info
+            const form = document.getElementById('configForm');
+            form.style.display = 'block';
+
+            // Small delay for fade in
+            setTimeout(() => {
+                form.style.opacity = '1';
+            }, 50);
+        }
+
+        // Start animation on load
+        runScan();
+
+        function toggleFields() {
+            const type = document.getElementById('modelType').value;
+            const params = document.querySelectorAll('.model-params');
+            params.forEach(p => p.style.display = 'none');
+
+            if (type === 'sgd') {
+                document.getElementById('sgdFields').style.display = 'block';
+            } else if (type === 'knn') {
+                document.getElementById('knnFields').style.display = 'block';
+            } else if (type === 'svm') {
+                document.getElementById('svmFields').style.display = 'block';
+            } else if (['decision_tree', 'random_forest', 'adaboost'].includes(type)) {
+                document.getElementById('treeFields').style.display = 'block';
+            }
+        }
+
+        document.getElementById('configForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const modelType = document.getElementById('modelType').value;
+            const epochs = parseInt(document.getElementById('epochs').value);
+
+            let modelParams = {};
+
+            if (modelType === 'sgd') {
+                modelParams = {
+                    loss: "{{ 'log_loss' if scenario.task_type == 'classification' else 'squared_error' }}",
+                    learning_rate: "constant",
+                    eta0: parseFloat(document.getElementById('lr').value),
+                    penalty: document.getElementById('optimizer').value,
+                };
+            } else if (modelType === 'knn') {
+                modelParams = { n_neighbors: parseInt(document.getElementById('n_neighbors').value) };
+            } else if (modelType === 'svm') {
+                modelParams = {
+                    kernel: document.getElementById('kernel').value,
+                    C: parseFloat(document.getElementById('C').value)
+                };
+            } else if (['decision_tree', 'random_forest'].includes(modelType)) {
+                modelParams = { max_depth: parseInt(document.getElementById('max_depth').value) };
+            }
+
+            const payload = {
+                model: { type: modelType, params: modelParams },
+                training: { epochs: epochs },
+                project_name: document.getElementById('projectName').value,
+                save_model: document.getElementById('saveModel').checked
+            };
+
+            const btn = document.querySelector('.btn-primary');
+            btn.innerText = "Initializing...";
+            btn.disabled = true;
+
+            const res = await fetch('/api/start', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (res.ok) {
+                window.location.href = "/";
+            } else {
+                alert("Failed to start");
+                btn.disabled = false;
+            }
+        });
+    </script>
+</body>
+
+</html>
