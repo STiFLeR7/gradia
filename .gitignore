@@ -33,7 +33,11 @@ venv.bak/
 debug_logs.py
 *.csv
 generate_data.py
+
+# Ignore PNGs except in assets/
 *.png
+!assets/*.png
+!gradia/viz/assets/*.png
 
 .gradia_logs/
 .pytest_cache/
