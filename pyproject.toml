@@ -4,42 +4,77 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "gradia"
-version = "1.0.0"
-description = "Local-first ML training visualization and tracking dashboard."
+version = "2.0.0"
+description = "Local-first ML training visualization with Learning Timeline - watch how your model learns sample by sample."
 readme = "README.md"
 authors = [
-  { name="STiFLeR", email="stifler@example.com" },
+  { name="STiFLeR", email="hillaniljppatel@gmail.com" },
 ]
 license = {file = "LICENSE"}
 classifiers = [
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Topic :: System :: Monitoring",
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
 ]
-keywords = ["machine-learning", "dashboard", "visualization", "tracking", "mlops"]
+keywords = ["machine-learning", "dashboard", "visualization", "tracking", "mlops", "timeline", "training-monitor"]
 dependencies = [
-    "scikit-learn",
-    "pandas",
-    "numpy",
-    "fastapi",
-    "uvicorn",
-    "typer",
-    "jinja2",
-    "watchdog",
-    "rich",
-    "psutil",
-    "tqdm"
+    "scikit-learn>=1.0",
+    "pandas>=1.3",
+    "numpy>=1.20",
+    "fastapi>=0.68",
+    "uvicorn>=0.15",
+    "typer>=0.4",
+    "jinja2>=3.0",
+    "rich>=10.0",
+    "psutil>=5.8",
+    "tqdm>=4.60",
+    "pyyaml>=6.0",
 ]
 requires-python = ">=3.9"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "flake8>=6.0",
+    "black>=23.0",
+    "build>=0.10",
+    "twine>=4.0",
+]
 
 [project.urls]
 "Homepage" = "https://github.com/STiFLeR7/gradia"
 "Bug Tracker" = "https://github.com/STiFLeR7/gradia/issues"
+"Documentation" = "https://github.com/STiFLeR7/gradia#readme"
+"Changelog" = "https://github.com/STiFLeR7/gradia/blob/master/RELEASE_NOTES.md"
 
 [project.scripts]
 gradia = "gradia.cli.main:app"
 
-[tool.setuptools]
-packages = ["gradia", "gradia.cli", "gradia.core", "gradia.models", "gradia.trainer", "gradia.viz"]
+[tool.setuptools.packages.find]
+include = ["gradia*"]
+
+[tool.setuptools.package-data]
+"gradia.viz" = ["templates/*.html", "static/**/*", "assets/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "-v --tb=short"
+asyncio_default_fixture_loop_scope = "function"
+filterwarnings = [
+    "ignore::UserWarning:sklearn.*",
+]
+
+[tool.black]
+line-length = 100
+target-version = ['py39', 'py310', 'py311', 'py312']

@@ -36,6 +36,11 @@ debug_logs.py
 *.csv
 generate_data.py
 *.png
-*.txt
+
 .gradia_logs/
 .pytest_cache/
+
+test_output.txt
+token.txt
+
+docs/

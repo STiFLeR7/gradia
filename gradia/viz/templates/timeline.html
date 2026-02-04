@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>gradia | Learning Timeline</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="/static/css/timeline.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+</head>
+
+<body>
+    <div class="layout">
+        <aside class="sidebar">
+            <img src="/assets/logo.png" alt="gradia" class="brand-logo">
+
+            <div class="sidebar-section">
+                <div class="sidebar-label">Experiment Context</div>
+                <div style="font-size: 0.9rem;">{{ scenario.target_column }}</div>
+                <div style="font-size: 0.8rem; color: #8e8ea0">{{ scenario.task_type }}</div>
+            </div>
+
+            <!-- Block D: Training Context Strip -->
+            <div class="sidebar-section" id="training-context">
+                <div class="sidebar-label">Training Status</div>
+                <div class="context-item">
+                    <span class="context-label">Epoch</span>
+                    <span class="context-value" id="current-epoch">0</span>
+                </div>
+                <div class="context-item">
+                    <span class="context-label">Status</span>
+                    <span class="context-value" id="training-status">Initializing</span>
+                </div>
+                <div class="context-item">
+                    <span class="context-label">Tracked</span>
+                    <span class="context-value" id="tracked-count">0</span>
+                </div>
+            </div>
+
+            <div class="sidebar-label">Navigation</div>
+            <div style="display: flex; flex-direction: column; gap: 10px;">
+                <button class="btn-nav" onclick="window.location.href='/'">
+                    📊 Metrics Dashboard
+                </button>
+                <button class="btn-nav active">
+                    🔬 Learning Timeline
+                </button>
+                <button class="btn-nav" onclick="window.location.href='/configure'">
+                    ⚙️ New Experiment
+                </button>
+            </div>
+
+            <div style="flex-grow:1"></div>
+
+            <div class="sidebar-section" style="font-size: 0.75rem; color: #565869;">
+                v2.0.0
+            </div>
+        </aside>
+
+        <main class="main">
+            <!-- Block A: Timeline Overview -->
+            <div class="card col-full" id="timeline-overview-card">
+                <div class="card-header">
+                    <h3>🔬 Timeline Overview</h3>
+                    <span class="card-subtitle">Sample learning stability across epochs</span>
+                </div>
+                <div id="timeline-overview" class="timeline-container">
+                    <div class="timeline-loading">
+                        <span>Waiting for training data...</span>
+                    </div>
+                </div>
+                <div class="timeline-legend">
+                    <span class="legend-item"><span class="legend-color stable-correct"></span> Stable Correct</span>
+                    <span class="legend-item"><span class="legend-color stable-wrong"></span> Persistent Error</span>
+                    <span class="legend-item"><span class="legend-color unstable"></span> Unstable</span>
+                    <span class="legend-item"><span class="legend-color late-learner"></span> Late Learner</span>
+                </div>
+            </div>
+
+            <div class="grid">
+                <!-- Block C: Flip & Instability Panel -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3>⚠️ Learning Instability</h3>
+                    </div>
+                    <div id="instability-panel">
+                        <div class="instability-section">
+                            <h4>Top Flipping Samples</h4>
+                            <div id="flipping-list" class="sample-list">
+                                <span class="empty-state">No data yet</span>
+                            </div>
+                        </div>
+                        <div class="instability-section">
+                            <h4>Late Learners</h4>
+                            <div id="late-learners-list" class="sample-list">
+                                <span class="empty-state">No data yet</span>
+                            </div>
+                        </div>
+                        <div class="instability-section">
+                            <h4>Never Correct</h4>
+                            <div id="never-correct-list" class="sample-list">
+                                <span class="empty-state">No data yet</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Stability Distribution Chart -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3>📊 Stability Distribution</h3>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="stabilityChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Block B: Sample Inspector (Modal) -->
+            <div id="sample-inspector-modal" class="modal" style="display: none;">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3>🔍 Sample Inspector</h3>
+                        <button class="modal-close" onclick="closeSampleInspector()">✕</button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="inspector-header">
+                            <div class="inspector-stat">
+                                <span class="stat-label">Sample ID</span>
+                                <span class="stat-value" id="inspector-sample-id">-</span>
+                            </div>
+                            <div class="inspector-stat">
+                                <span class="stat-label">True Label</span>
+                                <span class="stat-value" id="inspector-true-label">-</span>
+                            </div>
+                            <div class="inspector-stat">
+                                <span class="stat-label">Flip Count</span>
+                                <span class="stat-value" id="inspector-flip-count">-</span>
+                            </div>
+                            <div class="inspector-stat">
+                                <span class="stat-label">Stability</span>
+                                <span class="stat-value" id="inspector-stability">-</span>
+                            </div>
+                        </div>
+                        <div class="inspector-charts">
+                            <div class="chart-container">
+                                <h4>Prediction Trajectory</h4>
+                                <canvas id="predictionChart"></canvas>
+                            </div>
+                            <div class="chart-container">
+                                <h4>Confidence Curve</h4>
+                                <canvas id="confidenceChart"></canvas>
+                            </div>
+                        </div>
+                        <div class="inspector-events">
+                            <h4>Event History</h4>
+                            <div id="event-history-list" class="event-list"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <footer class="footer">
+                <div class="footer-text">
+                    Made with <span style="color:#ef4146">♥</span> by <strong>STiFLeR</strong> | Learning Timeline v2.0
+                </div>
+                <div class="social-links">
+                    <!-- Instagram -->
+                    <a href="https://instagram.com/stifler.xd" target="_blank" title="Instagram @stifler.xd">
+                        <svg class="social-icon" viewBox="0 0 24 24">
+                            <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z" />
+                        </svg>
+                    </a>
+                    <!-- Hugging Face -->
+                    <a href="https://huggingface.co/STiFLeR7" target="_blank" title="Hugging Face @STiFLeR7">
+                        <svg class="social-icon" viewBox="0 0 24 24">
+                            <path d="M12 2C6.477 2 2 6.477 2 12c0 4.42 2.865 8.166 6.839 9.489.5.092.682-.217.682-.482 0-.237-.008-.866-.013-1.7-2.782.604-3.369-1.34-3.369-1.34-.454-1.156-1.11-1.463-1.11-1.463-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.831.092-.646.35-1.086.636-1.336-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.269 2.75 1.025A9.578 9.578 0 0112 6.836c.85.004 1.705.114 2.504.336 1.909-1.294 2.747-1.025 2.747-1.025.546 1.377.203 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.339 4.687-4.566 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.743 0 .267.18.578.688.48C19.138 20.163 22 16.418 22 12c0-5.523-4.477-10-10-10z"/>
+                        </svg>
+                    </a>
+                    <!-- PyPI -->
+                    <a href="https://pypi.org/user/stifler.xd/" target="_blank" title="PyPI @stifler.xd">
+                        <svg class="social-icon" viewBox="0 0 24 24">
+                            <path d="M12.042 0L4.018 3.531v5.969l3.16-1.339V4.719l4.864-2.063 4.864 2.063v3.442l3.16 1.339V3.531L12.042 0zm7.976 7.406l-7.976 3.375-7.976-3.375v8.813l7.976 3.375 7.976-3.375V7.406zM4.018 17.906v3.563L12.042 25l8.024-3.531v-3.563l-8.024 3.375-8.024-3.375z"/>
+                        </svg>
+                    </a>
+                </div>
+            </footer>
+        </main>
+    </div>
+    <script src="/static/js/timeline.js"></script>
+</body>
+
+</html>

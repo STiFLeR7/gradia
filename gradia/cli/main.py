@@ -30,7 +30,7 @@ def run(
     """
     Starts the gradia training and visualization session.
     """
-    console.rule("[bold blue]gradia v1.0.0[/bold blue]")
+    console.rule("[bold blue]gradia v2.0.0[/bold blue]")
     
     # 1. Inspect
     path = Path(path).resolve()

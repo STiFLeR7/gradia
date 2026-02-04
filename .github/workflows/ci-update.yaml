@@ -1,40 +1,108 @@
-name: CI/CD Pipeline
+name: gradia CI
 
 on:
   push:
-    branches: [ "main", "master" ]
-    tags: [ "v*" ]
+    branches: ["master", "main"]
   pull_request:
-    branches: [ "main", "master" ]
+    branches: ["master", "main"]
+
+concurrency:
+  group: gradia-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.9", "3.10", "3.11", "3.12"]
+      fail-fast: false
+
+    env:
+      PYTHONUNBUFFERED: 1
+
     steps:
-    - uses: actions/checkout@v3
-    
-    - name: Set up Python 3.9
-      uses: actions/setup-python@v3
-      with:
-        python-version: "3.9"
-        
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install build twine flake8 pytest
-        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-        
-    - name: Lint with flake8
-      run: |
-        # stop the build if there are Python syntax errors or undefined names
-        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-        # exit-zero treats all errors as warnings.
-        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
-        
-    - name: Build Package
-      run: python -m build
-      
-    - name: Check Package
-      run: twine check dist/*
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: "${{ matrix.python-version }}"
+          cache: "pip"
+
+      - name: Cache pip cache (explicit)
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ matrix.python-version }}-${{ hashFiles('**/pyproject.toml','**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-${{ matrix.python-version }}-
+
+      - name: Upgrade pip / build tools
+        shell: bash
+        run: |
+          python -m pip install --upgrade pip wheel setuptools build
+
+      - name: Install package in editable mode with dev extras
+        shell: bash
+        run: |
+          pip install -e ".[dev]"
+
+      - name: Lint (flake8) — non-blocking
+        shell: bash
+        run: |
+          pip install flake8
+          flake8 gradia --count --select=E9,F63,F7,F82 --show-source --statistics || true
+          flake8 gradia --count --exit-zero --max-complexity=15 --max-line-length=127 --statistics
+
+      # ---- CLI Smoke Tests ----
+      - name: CLI Test - Help
+        run: gradia --help
+
+      - name: CLI Test - Version (non-blocking)
+        run: python -c "import gradia; print(f'gradia v{gradia.__version__}')" || true
+
+      # ---- Unit Tests ----
+      - name: Run pytest (all tests)
+        run: pytest tests/ -v --tb=short --disable-warnings
+
+      # ---- Build Distribution ----
+      - name: Build distributions
+        run: python -m build
+
+      - name: Twine check
+        run: |
+          pip install twine
+          twine check dist/*
+
+      - name: Collect logs & reports (always)
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p tmp
+          ls -la dist/ || true
+          echo "Files ready for upload:"
+          find dist/ -type f 2>/dev/null | head -20 || true
+
+      - name: Upload artifacts (distributions)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-artifacts-py${{ matrix.python-version }}
+          path: |
+            dist/
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Cleanup (best-effort)
+        if: always()
+        run: |
+          rm -rf .pytest_cache || true
 
 

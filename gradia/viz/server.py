@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -6,14 +7,12 @@ import uvicorn
 import json
 import threading
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 from ..trainer.engine import Trainer
 
 import psutil
 import time
-
-app = FastAPI()
 
 # Global State (Injected by CLI)
 SCENARIO = None
@@ -24,20 +23,13 @@ TRAINER = None
 TRAINING_THREAD = None
 SYSTEM_THREAD = None
 
-# Mounts
+# Base directory for templates and static files
 BASE_DIR = Path(__file__).resolve().parent
-
-app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
-# Mount assets if they exist outside static, or ensure user put them in static. Assuming viz/assets
-assets_path = BASE_DIR / "assets"
-if assets_path.exists():
-    app.mount("/assets", StaticFiles(directory=assets_path), name="assets")
 
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
 
 from ..trainer.callbacks import log_lock
 
-# ... imports ...
 import os
 
 # System Monitor
@@ -61,27 +53,47 @@ def system_monitor_loop():
                     f.flush()
                     os.fsync(f.fileno())
 
-# Start System Monitor on import/startup (or when server starts)
-@app.on_event("startup")
-async def startup_event():
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Lifespan context manager for startup/shutdown events."""
     global SYSTEM_THREAD
+    # Startup
     SYSTEM_THREAD = threading.Thread(target=system_monitor_loop, daemon=True)
     SYSTEM_THREAD.start()
+    yield
+    # Shutdown (if needed)
+    pass
+
+
+app = FastAPI(lifespan=lifespan)
+
+# Mount static files
+app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
+assets_path = BASE_DIR / "assets"
+if assets_path.exists():
+    app.mount("/assets", StaticFiles(directory=assets_path), name="assets")
 
 
 @app.get("/")
 async def read_root(request: Request):
     if TRAINER is None:
         return RedirectResponse("/configure")
-    return templates.TemplateResponse("index.html", {"request": request, "scenario": SCENARIO})
+    return templates.TemplateResponse(request, "index.html", {"scenario": SCENARIO})
+
+@app.get("/timeline")
+async def timeline_page(request: Request):
+    """Learning Timeline view (v2.0)."""
+    if TRAINER is None:
+        return RedirectResponse("/configure")
+    return templates.TemplateResponse(request, "timeline.html", {"scenario": SCENARIO})
 
 @app.get("/configure")
 async def configure_page(request: Request):
     if SCENARIO is None:
         return "System not initialized correctly from CLI."
         
-    return templates.TemplateResponse("configure.html", {
-        "request": request, 
+    return templates.TemplateResponse(request, "configure.html", {
         "scenario": SCENARIO,
         "features": SCENARIO.features,
         "default_config": DEFAULT_CONFIG
@@ -220,6 +232,130 @@ async def evaluate_model():
         return JSONResponse(content=results)
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=500)
+
+
+# ============================================================================
+# v2.0.0 Learning Timeline API Endpoints
+# ============================================================================
+
+@app.get("/api/timeline/events")
+async def get_timeline_events(epoch: int = None, sample_id: int = None):
+    """
+    Get learning timeline events with optional filtering.
+    
+    Query params:
+        epoch: Filter by specific epoch
+        sample_id: Filter by specific sample
+    """
+    if TRAINER is None or not TRAINER.enable_timeline:
+        return JSONResponse({"error": "Timeline not available"}, status_code=400)
+    
+    try:
+        events = TRAINER.timeline_logger.get_events(epoch=epoch, sample_id=sample_id)
+        return JSONResponse(content=[e.to_dict() for e in events])
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
+@app.get("/api/timeline/summaries")
+async def get_timeline_summaries():
+    """Get all epoch summaries for timeline overview."""
+    if TRAINER is None or not TRAINER.enable_timeline:
+        return JSONResponse({"error": "Timeline not available"}, status_code=400)
+    
+    try:
+        summaries = TRAINER.timeline_logger.get_summaries()
+        return JSONResponse(content=[s.to_dict() for s in summaries])
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
+@app.get("/api/timeline/sample/{sample_id}")
+async def get_sample_timeline(sample_id: int):
+    """Get full timeline for a specific tracked sample."""
+    if TRAINER is None or not TRAINER.enable_timeline:
+        return JSONResponse({"error": "Timeline not available"}, status_code=400)
+    
+    try:
+        timeline = TRAINER.get_sample_timeline(sample_id)
+        if not timeline:
+            return JSONResponse({"error": "Sample not tracked"}, status_code=404)
+        
+        # Also include stability analysis
+        state = TRAINER.sample_tracker.get_sample_state(sample_id)
+        result = {
+            "sample_id": sample_id,
+            "true_label": str(state.true_label) if state else None,
+            "flip_count": state.flip_count if state else 0,
+            "stability_class": state.stability_class if state else "unknown",
+            "first_correct_epoch": state.first_correct_epoch if state else None,
+            "events": timeline
+        }
+        return JSONResponse(content=result)
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
+@app.get("/api/timeline/insights")
+async def get_timeline_insights():
+    """Get aggregated timeline insights: flipping samples, late learners, etc."""
+    if TRAINER is None or not TRAINER.enable_timeline:
+        return JSONResponse({"error": "Timeline not available"}, status_code=400)
+    
+    try:
+        tracker = TRAINER.sample_tracker
+        
+        insights = {
+            "tracked_samples": list(tracker.tracked_indices),
+            "total_tracked": len(tracker.tracked_indices),
+            "top_flipping": [
+                {
+                    "sample_id": s.sample_id,
+                    "flip_count": s.flip_count,
+                    "true_label": str(s.true_label),
+                    "current_prediction": str(s.current_prediction),
+                    "stability_class": s.stability_class
+                }
+                for s in tracker.get_top_flipping_samples(20)
+            ],
+            "late_learners": [
+                {
+                    "sample_id": s.sample_id,
+                    "true_label": str(s.true_label),
+                    "first_correct_epoch": s.first_correct_epoch
+                }
+                for s in tracker.get_late_learners()
+            ],
+            "never_correct": [
+                {
+                    "sample_id": s.sample_id,
+                    "true_label": str(s.true_label),
+                    "current_prediction": str(s.current_prediction)
+                }
+                for s in tracker.get_never_correct()
+            ],
+            "stability_distribution": _compute_stability_distribution(tracker)
+        }
+        return JSONResponse(content=insights)
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
+def _compute_stability_distribution(tracker) -> Dict[str, int]:
+    """Compute distribution of stability classes."""
+    distribution = {
+        "stable_correct": 0,
+        "stable_wrong": 0,
+        "unstable": 0,
+        "late_learner": 0,
+        "unknown": 0
+    }
+    for state in tracker.sample_states.values():
+        stability = state.stability_class
+        if stability in distribution:
+            distribution[stability] += 1
+    return distribution
+
 
 def start_server(run_dir: str, port: int = 8000):
     global RUN_DIR
